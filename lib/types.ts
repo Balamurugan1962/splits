@@ -17,6 +17,19 @@ export interface Item {
   shares: ItemShare[];
 }
 
+export interface SplitSession {
+  id: string;
+  name: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: number;
+  payeeId: string;
+  items: Item[];
+  status?: "active" | "closed";
+  closedAt?: number;
+  paidMemberIds?: string[];
+}
+
 export interface Group {
   id: string;
   name: string;
@@ -25,6 +38,8 @@ export interface Group {
   members: Member[];
   items: Item[];
   createdAt: number;
+  ownerId?: string;
+  splits?: SplitSession[];
 }
 
 export const CURRENCIES = [

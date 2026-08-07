@@ -2,11 +2,24 @@ import type { Group } from "./types";
 
 const STORAGE_KEY = "splits-groups";
 
+// In-memory cache to avoid redundant JSON.parse on each read
+let _cache: Group[] | null = null;
+let _cacheKey = "";
+
+function invalidateCache() {
+  _cache = null;
+  _cacheKey = "";
+}
+
 export function loadGroups(): Group[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Group[]) : [];
+    const raw = localStorage.getItem(STORAGE_KEY) ?? "";
+    if (_cache && _cacheKey === raw) return _cache;
+    const parsed = raw ? (JSON.parse(raw) as Group[]) : [];
+    _cache = parsed;
+    _cacheKey = raw;
+    return parsed;
   } catch {
     return [];
   }
@@ -14,10 +27,15 @@ export function loadGroups(): Group[] {
 
 export function saveGroups(groups: Group[]): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
+  const serialized = JSON.stringify(groups);
+  localStorage.setItem(STORAGE_KEY, serialized);
+  // Update in-memory cache immediately
+  _cache = groups;
+  _cacheKey = serialized;
 }
 
 export function getGroup(id: string): Group | undefined {
+  // Uses in-memory cache — no extra JSON.parse
   return loadGroups().find((g) => g.id === id);
 }
 

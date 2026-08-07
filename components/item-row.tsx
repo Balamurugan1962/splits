@@ -26,6 +26,7 @@ interface ItemRowProps {
   onEdit: () => void;
   onDelete: () => void;
   onUpdate: (item: Item) => void;
+  isReadOnly?: boolean;
 }
 
 export function ItemRow({
@@ -35,6 +36,7 @@ export function ItemRow({
   onEdit,
   onDelete,
   onUpdate,
+  isReadOnly = false,
 }: ItemRowProps) {
   const [editingShareId, setEditingShareId] = useState<string | null>(null);
   const [draftValue, setDraftValue] = useState("");
@@ -139,32 +141,34 @@ export function ItemRow({
             {currency}{item.price.toFixed(2)}
           </span>
 
-          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 border-l border-border pl-2 sm:pl-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              aria-label="Edit item"
-            >
-              <PencilIcon className="h-5 w-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              aria-label="Delete item"
-            >
-              <Trash2Icon className="h-5 w-5" />
-            </Button>
-          </div>
+          {!isReadOnly && (
+            <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 border-l border-border pl-2 sm:pl-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+                aria-label="Edit item"
+              >
+                <PencilIcon className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                aria-label="Delete item"
+              >
+                <Trash2Icon className="h-5 w-5" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -189,7 +193,7 @@ export function ItemRow({
                     className="flex items-center justify-between gap-2 p-1.5 transition-colors hover:bg-background"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      {isLocked ? (
+                      {!isReadOnly && isLocked ? (
                         <button
                           onClick={() => unlockShare(m.id)}
                           title="Click to unlock"
@@ -198,6 +202,8 @@ export function ItemRow({
                         >
                           <LockIcon className="h-4 w-4" />
                         </button>
+                      ) : isLocked ? (
+                        <LockIcon className="h-4 w-4 text-primary/80 shrink-0" />
                       ) : (
                         <UnlockIcon className="h-4 w-4 text-muted-foreground/40 shrink-0" />
                       )}
@@ -208,7 +214,7 @@ export function ItemRow({
                       <span className="text-sm sm:text-base text-muted-foreground">
                         {currency}
                       </span>
-                      {isEditing ? (
+                      {!isReadOnly && isEditing ? (
                         <Input
                           autoFocus
                           type="number"
@@ -227,7 +233,7 @@ export function ItemRow({
                           className="h-10 w-24 sm:w-28 text-right text-base sm:text-lg px-2"
                           aria-label={`${m.name} share amount`}
                         />
-                      ) : (
+                      ) : !isReadOnly ? (
                         <button
                           onClick={() => handleShareEdit(m.id)}
                           className={`h-10 min-w-[5.5rem] sm:min-w-[6.5rem] text-right text-base sm:text-lg px-3 border transition-colors hover:border-primary/60 hover:bg-accent ${
@@ -242,6 +248,14 @@ export function ItemRow({
                         >
                           {share?.amount.toFixed(2) ?? "0.00"}
                         </button>
+                      ) : (
+                        <span
+                          className={`h-10 min-w-[5.5rem] sm:min-w-[6.5rem] inline-flex items-center justify-end text-base sm:text-lg px-3 ${
+                            isLocked ? "text-primary font-medium" : "text-foreground"
+                          }`}
+                        >
+                          {share?.amount.toFixed(2) ?? "0.00"}
+                        </span>
                       )}
                     </div>
                   </div>
