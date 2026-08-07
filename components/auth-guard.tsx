@@ -1,13 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LockIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useSession, signIn } from "@/lib/auth-client";
+import { useSession, signIn, signOut } from "@/lib/auth-client";
+
+const SESSION_CACHE_KEY = "splits-session-cache";
+
+// Read a previously cached session hint from localStorage.
+// This lets us optimistically render protected content instantly
+// while the real session check runs in the background.
+function getCachedSessionHint(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(SESSION_CACHE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setCachedSessionHint(value: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    if (value) {
+      localStorage.setItem(SESSION_CACHE_KEY, "1");
+    } else {
+      localStorage.removeItem(SESSION_CACHE_KEY);
+    }
+  } catch {}
+}
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { data: session, isPending } = useSession();
   const [loading, setLoading] = useState(false);
+
+  // Optimistic session hint — true if user was signed in on last visit
+  const [optimisticAuth] = useState(() => getCachedSessionHint());
+
+  // Sync cache whenever real session resolves
+  useEffect(() => {
+    if (!isPending) {
+      setCachedSessionHint(!!session?.user);
+    }
+  }, [isPending, session?.user]);
 
   async function handleGoogleSignIn() {
     setLoading(true);
@@ -22,18 +57,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }
 
-  if (isPending) {
+  // Show spinner only when: no cached hint AND still pending
+  // If user was signed in before, render children immediately (optimistic)
+  if (isPending && !optimisticAuth) {
     return (
       <div className="flex flex-col items-center justify-center py-24 space-y-4 text-center">
         <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
         <p className="text-sm text-muted-foreground animate-pulse">
-          Verifying authentication session...
+          Verifying session...
         </p>
       </div>
     );
   }
 
-  if (!session?.user) {
+  // If session resolved as unauthenticated (and not still pending with optimistic hint)
+  if (!session?.user && !isPending) {
     return (
       <div className="max-w-md mx-auto my-12 p-8 border border-border bg-card text-center space-y-6">
         <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto text-primary">
@@ -77,5 +115,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Render children — either session is confirmed, or optimistically assumed authenticated
   return <>{children}</>;
 }
