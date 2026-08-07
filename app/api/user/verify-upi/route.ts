@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
-  // If Razorpay keys are not configured, skip name verification
+  // If Razorpay keys are not configured or placeholder, skip name verification
   if (!keyId || !keySecret || keyId.includes("xxxx")) {
     return NextResponse.json({
       success: true,
@@ -54,10 +54,18 @@ export async function POST(request: Request) {
       body: JSON.stringify({ vpa: trimmed }),
     });
 
-    const data = await res.json();
+    if (!res.ok) {
+      // Endpoint deprecated or not enabled on Razorpay account — allow saving without name lookup
+      return NextResponse.json({
+        success: true,
+        name: null,
+        upiId: trimmed,
+        verified: false,
+      });
+    }
 
-    if (!res.ok || data.success === false) {
-      // Return 200 with success:false — not HTTP 400 — so browser console stays clean
+    const data = await res.json();
+    if (data.success === false) {
       return NextResponse.json({
         success: false,
         error: "UPI ID not found or invalid. Please check and try again.",
@@ -66,15 +74,16 @@ export async function POST(request: Request) {
       });
     }
 
+    const customerName = data.customer_name || data.name || data.vpa_name || null;
+
     return NextResponse.json({
       success: true,
-      name: data.customer_name || data.name || null,
+      name: customerName,
       upiId: trimmed,
       verified: true,
     });
   } catch (err) {
-    console.error("Razorpay VPA validation error:", err);
-    // Network error — allow saving without verification
+    console.error("VPA validation error:", err);
     return NextResponse.json({
       success: true,
       name: null,
