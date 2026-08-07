@@ -8,27 +8,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { upiId } = body as { upiId?: string };
+  let body: { upiId?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ success: false, error: "Invalid request body" });
+  }
+
+  const { upiId } = body;
 
   if (!upiId || typeof upiId !== "string") {
-    return NextResponse.json({ error: "UPI ID is required" }, { status: 400 });
+    return NextResponse.json({ success: false, error: "UPI ID is required" });
   }
 
   const trimmed = upiId.trim().toLowerCase();
   const parts = trimmed.split("@");
   if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    return NextResponse.json(
-      { success: false, error: "Invalid UPI ID format. Expected format: name@bank" },
-      { status: 400 }
-    );
+    return NextResponse.json({
+      success: false,
+      error: "Invalid UPI ID format. Expected: yourname@bank",
+    });
   }
 
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
+  // If Razorpay keys are not configured, skip name verification
   if (!keyId || !keySecret || keyId.includes("xxxx")) {
-    // Razorpay not configured — skip name verification
     return NextResponse.json({
       success: true,
       name: null,
@@ -51,10 +57,13 @@ export async function POST(request: Request) {
     const data = await res.json();
 
     if (!res.ok || data.success === false) {
-      return NextResponse.json(
-        { success: false, error: "UPI ID not found. Please check and try again." },
-        { status: 400 }
-      );
+      // Return 200 with success:false — not HTTP 400 — so browser console stays clean
+      return NextResponse.json({
+        success: false,
+        error: "UPI ID not found or invalid. Please check and try again.",
+        upiId: trimmed,
+        verified: false,
+      });
     }
 
     return NextResponse.json({
@@ -65,7 +74,7 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     console.error("Razorpay VPA validation error:", err);
-    // If Razorpay is unreachable, allow saving without name verification
+    // Network error — allow saving without verification
     return NextResponse.json({
       success: true,
       name: null,

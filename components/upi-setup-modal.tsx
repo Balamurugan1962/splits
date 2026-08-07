@@ -18,7 +18,7 @@ interface UpiSetupModalProps {
 
 export function UpiSetupModal({ open, onClose }: UpiSetupModalProps) {
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={open}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
@@ -28,14 +28,13 @@ export function UpiSetupModal({ open, onClose }: UpiSetupModalProps) {
             <DialogTitle className="text-xl">Set Up UPI</DialogTitle>
           </div>
           <DialogDescription>
-            Add your UPI ID so others can pay you directly. You can change this anytime from Settings.
+            A UPI ID is required to receive payments in splits. You can change it anytime from Settings.
           </DialogDescription>
         </DialogHeader>
 
         <UpiInputFlow
           onSaved={onClose}
-          onSkip={onClose}
-          showSkip={true}
+          showSkip={false}
         />
       </DialogContent>
     </Dialog>

@@ -105,7 +105,7 @@ export async function PUT(
       );
     }
 
-    // Security Check 2: Server-Side Split Ownership Validation
+    // Security Check 2: Server-Side Split & Self-Payment Validation
     const incomingSplits: SplitSession[] = incomingGroup.splits || [];
     const existingSplits: SplitSession[] = existingGroup.splits || [];
 
@@ -113,7 +113,6 @@ export async function PUT(
       const extSplit = existingSplits.find((s) => s.id === incSplit.id);
 
       if (extSplit) {
-        // Compare items and paidMemberIds for modifications
         const itemsChanged =
           JSON.stringify(incSplit.items) !== JSON.stringify(extSplit.items);
         const paidChanged =
@@ -121,15 +120,46 @@ export async function PUT(
           JSON.stringify(extSplit.paidMemberIds);
         const statusChanged = incSplit.status !== extSplit.status;
 
-        if (itemsChanged || paidChanged || statusChanged) {
-          if (!isSplitOwner(existingGroup, extSplit, userId)) {
+        const isOwner = isSplitOwner(existingGroup, extSplit, userId);
+
+        if (!isOwner) {
+          // 1. Non-owners cannot edit items
+          if (itemsChanged) {
             return NextResponse.json(
-              {
-                error:
-                  "Forbidden. Only the split owner can modify items, payment status, or close this split.",
-              },
+              { error: "Forbidden. Only the split owner can edit items." },
               { status: 403 }
             );
+          }
+
+          // 2. Non-owners can ONLY toggle their OWN member ID in paidMemberIds
+          if (paidChanged) {
+            const extOthers = (extSplit.paidMemberIds || []).filter((id) => id !== userId).sort();
+            const incOthers = (incSplit.paidMemberIds || []).filter((id) => id !== userId).sort();
+            if (JSON.stringify(extOthers) !== JSON.stringify(incOthers)) {
+              return NextResponse.json(
+                { error: "Forbidden. You can only update your own payment status." },
+                { status: 403 }
+              );
+            }
+          }
+
+          // 3. Non-owners can only trigger status change if all non-payees are paid (auto-close)
+          if (statusChanged) {
+            const payeeId = incSplit.payeeId || existingGroup.payeeId;
+            const nonPayeeMembers = (existingGroup.members || []).filter((m) => m.id !== payeeId);
+            const incPaid = incSplit.paidMemberIds || [];
+            const isAutoClose =
+              extSplit.status === "active" &&
+              incSplit.status === "closed" &&
+              nonPayeeMembers.length > 0 &&
+              nonPayeeMembers.every((m) => incPaid.includes(m.id));
+
+            if (!isAutoClose) {
+              return NextResponse.json(
+                { error: "Forbidden. Only split owners can manually change split status." },
+                { status: 403 }
+              );
+            }
           }
         }
       }

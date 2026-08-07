@@ -17,13 +17,14 @@ export function useGroup(id: string) {
   const pendingPushRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
 
-  // Debounced cloud push – batches rapid mutations into a single network call
+  // Debounced/Immediate cloud push – batches rapid mutations or sends critical updates immediately
   const pushToCloud = useCallback(
-    (g: Group) => {
+    (g: Group, immediate = false) => {
       if (pendingPushRef.current) {
         clearTimeout(pendingPushRef.current);
       }
-      pendingPushRef.current = setTimeout(async () => {
+
+      const doPush = async () => {
         if (!isMountedRef.current) return;
         try {
           const res = await fetch(`/api/groups/${g.id}`, {
@@ -36,11 +37,20 @@ export function useGroup(id: string) {
             if (data.updatedAt) {
               lastSyncTimeRef.current = data.updatedAt;
             }
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            console.error("Cloud push rejected:", res.status, errData);
           }
-        } catch {
-          // Silently fail — local state is already updated
+        } catch (err) {
+          console.error("Cloud push network error:", err);
         }
-      }, PUSH_DEBOUNCE_MS);
+      };
+
+      if (immediate) {
+        doPush();
+      } else {
+        pendingPushRef.current = setTimeout(doPush, PUSH_DEBOUNCE_MS);
+      }
     },
     []
   );
@@ -130,7 +140,7 @@ export function useGroup(id: string) {
   );
 
   const updateGroup = useCallback(
-    (patch: Partial<Group>) => {
+    (patch: Partial<Group>, immediate = true) => {
       setGroup((prev) => {
         if (!prev) return prev;
         const next = { ...prev, ...patch };
@@ -146,7 +156,7 @@ export function useGroup(id: string) {
           });
         }
         saveGroup(next);
-        pushToCloud(next);
+        pushToCloud(next, immediate);
         return next;
       });
     },
