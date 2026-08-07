@@ -30,6 +30,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { useRouter } from "next/navigation";
 import { useGroup } from "@/hooks/use-group";
 import { useSession } from "@/lib/auth-client";
+import { useUserProfile } from "@/hooks/use-user-profile";
 import type { Group, Item, SplitSession } from "@/lib/types";
 
 interface GroupWorkspaceProps {
@@ -41,6 +42,7 @@ export function GroupWorkspace({ id, splitId }: GroupWorkspaceProps) {
   const router = useRouter();
   const { group, updateGroup } = useGroup(id);
   const { data: session } = useSession();
+  const { profile: payeeProfile } = useUserProfile();
 
   async function handleDeleteGroup(groupId: string) {
     try {
@@ -325,29 +327,7 @@ export function GroupWorkspace({ id, splitId }: GroupWorkspaceProps) {
               </p>
             </div>
 
-            {/* Split Owner Action: Close Split / Re-open Split */}
-            {isSplitOwner && (
-              <div className="flex items-center gap-2 shrink-0">
-                {isClosed ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleReopenSplit(selectedSplit.id)}
-                    className="h-10 sm:h-11 px-3.5 gap-2 text-xs sm:text-sm font-semibold shrink-0"
-                  >
-                    <span>Re-open Split</span>
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => handleCloseSplit(selectedSplit.id)}
-                    variant="outline"
-                    className="h-10 sm:h-11 px-3.5 gap-2 text-xs sm:text-sm border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400 font-semibold shrink-0"
-                  >
-                    <CheckCircle2Icon className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
-                    <span>Close Split</span>
-                  </Button>
-                )}
-              </div>
-            )}
+            {/* Split is auto-closed when all members pay themselves */}
           </div>
         </div>
 
@@ -370,11 +350,12 @@ export function GroupWorkspace({ id, splitId }: GroupWorkspaceProps) {
         {selectedSplit.items.length > 0 && (
           <SplitSummary
             group={splitGroup}
+            split={selectedSplit}
             paidMemberIds={selectedSplit.paidMemberIds}
-            onTogglePaid={handleTogglePaidMember}
-            onCloseSplit={!isClosed ? () => handleCloseSplit(selectedSplit.id) : undefined}
+            onSelfMarkPaid={handleTogglePaidMember}
             currentUserId={session?.user?.id}
             isOwner={isSplitOwner}
+            payeeUpiId={payeeProfile?.upiId ?? null}
           />
         )}
 

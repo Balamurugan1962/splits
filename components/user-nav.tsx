@@ -1,6 +1,7 @@
 "use client";
 
-import { LogOutIcon } from "lucide-react";
+import Link from "next/link";
+import { LogOutIcon, SettingsIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSession, signOut } from "@/lib/auth-client";
 
@@ -17,6 +18,16 @@ export function UserNav() {
         <span className="text-sm font-medium hidden sm:inline text-foreground">
           {session.user.name || session.user.email}
         </span>
+        <Link href="/settings">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 px-0"
+            title="Settings"
+          >
+            <SettingsIcon className="h-4 w-4" />
+          </Button>
+        </Link>
         <Button
           variant="outline"
           size="sm"
@@ -31,6 +42,5 @@ export function UserNav() {
     );
   }
 
-  // When not signed in, do not render duplicate Google Sign-In button in navbar
   return null;
 }
