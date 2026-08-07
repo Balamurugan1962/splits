@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { groups, user } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
-import { eq, or, sql, desc } from "drizzle-orm";
+import { eq, or, sql, desc, inArray } from "drizzle-orm";
 import type { Group } from "@/lib/types";
 
 export async function GET() {
@@ -41,17 +41,52 @@ export async function GET() {
       )
       .orderBy(desc(groups.updatedAt));
 
-    const list: Group[] = rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      currency: row.currency,
-      payeeId: row.payeeId || "",
-      ownerId: row.ownerId || undefined,
-      createdAt: row.createdAt,
-      members: (row.members as any) || [],
-      items: (row.items as any) || [],
-      splits: (row.splits as any) || [],
-    }));
+    // Collect all member IDs to enrich upiId
+    const allMemberIds = Array.from(
+      new Set(rows.flatMap((r) => ((r.members as any[]) || []).map((m) => m.id)).filter(Boolean))
+    );
+
+    let upiMap = new Map<string, { upiId?: string; upiName?: string }>();
+    if (allMemberIds.length > 0) {
+      try {
+        const userRows = await db
+          .select({ id: user.id, upiId: user.upiId, upiName: user.upiName })
+          .from(user)
+          .where(inArray(user.id, allMemberIds));
+        upiMap = new Map(
+          userRows.map((u) => [
+            u.id,
+            { upiId: u.upiId || undefined, upiName: u.upiName || undefined },
+          ])
+        );
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const list: Group[] = rows.map((row) => {
+      const rawMembers: any[] = (row.members as any) || [];
+      const enrichedMembers = rawMembers.map((m) => {
+        const u = upiMap.get(m.id);
+        return {
+          ...m,
+          upiId: u?.upiId || m.upiId || undefined,
+          upiName: u?.upiName || m.upiName || undefined,
+        };
+      });
+
+      return {
+        id: row.id,
+        name: row.name,
+        currency: row.currency,
+        payeeId: row.payeeId || "",
+        ownerId: row.ownerId || undefined,
+        createdAt: row.createdAt,
+        members: enrichedMembers,
+        items: (row.items as any) || [],
+        splits: (row.splits as any) || [],
+      };
+    });
 
     return NextResponse.json(
       { groups: list },

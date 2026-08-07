@@ -283,6 +283,10 @@ export function GroupWorkspace({ id, splitId }: GroupWorkspaceProps) {
     const splitPayee = group.members.find(
       (m) => m.id === (selectedSplit.payeeId || group.payeeId)
     );
+    const payeeUpiId =
+      splitPayee?.upiId ||
+      (splitPayee?.id === session?.user?.id ? payeeProfile?.upiId : null) ||
+      null;
 
     const splitGroup: Group = {
       ...group,
@@ -355,7 +359,7 @@ export function GroupWorkspace({ id, splitId }: GroupWorkspaceProps) {
             onSelfMarkPaid={handleTogglePaidMember}
             currentUserId={session?.user?.id}
             isOwner={isSplitOwner}
-            payeeUpiId={payeeProfile?.upiId ?? null}
+            payeeUpiId={payeeUpiId}
           />
         )}
 

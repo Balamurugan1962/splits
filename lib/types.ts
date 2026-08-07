@@ -1,6 +1,8 @@
 export interface Member {
   id: string;
   name: string;
+  upiId?: string;
+  upiName?: string;
 }
 
 export interface ItemShare {

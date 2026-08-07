@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { groups, user } from "./db/schema";
-import { eq } from "drizzle-orm";
-import type { Group } from "./types";
+import { eq, inArray } from "drizzle-orm";
+import type { Group, Member } from "./types";
 
 // In-memory fallback map for local development & build environments
 const globalRoomStore = globalThis as unknown as {
@@ -28,6 +28,34 @@ export async function getCloudGroup(
 
       if (rows.length > 0) {
         const row = rows[0];
+        let membersList: Member[] = (row.members as any) || [];
+
+        // Enrich members with upiId from user table
+        const memberIds = membersList.map((m) => m.id).filter(Boolean);
+        if (memberIds.length > 0) {
+          try {
+            const userRows = await db
+              .select({ id: user.id, upiId: user.upiId, upiName: user.upiName })
+              .from(user)
+              .where(inArray(user.id, memberIds));
+
+            const upiMap = new Map(
+              userRows.map((u) => [u.id, { upiId: u.upiId, upiName: u.upiName }])
+            );
+
+            membersList = membersList.map((m) => {
+              const u = upiMap.get(m.id);
+              return {
+                ...m,
+                upiId: u?.upiId || m.upiId || undefined,
+                upiName: u?.upiName || m.upiName || undefined,
+              };
+            });
+          } catch (e) {
+            // ignore fallback
+          }
+        }
+
         const groupObj: Group = {
           id: row.id,
           name: row.name,
@@ -35,7 +63,7 @@ export async function getCloudGroup(
           payeeId: row.payeeId || "",
           ownerId: row.ownerId || undefined,
           createdAt: row.createdAt,
-          members: (row.members as any) || [],
+          members: membersList,
           items: (row.items as any) || [],
           splits: (row.splits as any) || [],
         };
